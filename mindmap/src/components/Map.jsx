@@ -12,7 +12,7 @@ export const Map = () => {
     const fgRef = useRef();
     // const graphData = genRandomTree();
     const [graphData, setGraphData] = useState(data);
-
+    const [selectedNodes, setSelectedNodes] = useState(new Set());
 
     //add node every second
     // useEffect(() => {
@@ -21,19 +21,30 @@ export const Map = () => {
     const handleBackgroundClick = () => {
         //change parameters
         const id = "newPoint!";
-        const group = 8;
         const x = 0;
         const y = 0;
         const z = 0;
+
+        let group;
+        const selectedGroups = Array.from(selectedNodes, node => node.group);
+        const allSameGroup = selectedGroups.every((val, i, arr) => val === arr[0]);
+
+        if (allSameGroup && selectedGroups.length > 0) {
+            group = selectedGroups[0];
+        } else {
+            group = Math.max(...graphData.nodes.map(node => node.group)) + 1;
+        }
 
         const newNodes = [...graphData.nodes, { id, group, x, y, z }];
         const newLinks = [...graphData.links];
 
         if (newNodes.length > 1) {
-            const source = id;
-            const target = "Myriel" //change
-            const value = 6; //change
-            newLinks.push({ source, target, value });
+            selectedNodes.forEach(selectedNode => {
+                const source = id;
+                const target = selectedNode.id;
+                const value = 6; //change
+                newLinks.push({ source, target, value });
+            });
         }
         setGraphData({ nodes: newNodes, links: newLinks });
     };
@@ -47,6 +58,26 @@ export const Map = () => {
         setGraphData({ nodes: newNodes, links: newLinks });
     }, [graphData, setGraphData]);
 
+    //select nodes
+    const handleNodeClick = (node, event) => {
+        setSelectedNodes(prevSelectedNodes => {
+            const newSelectedNodes = new Set(prevSelectedNodes);
+            if (event.ctrlKey || event.shiftKey || event.altKey) {
+                // multi-selection
+                newSelectedNodes.has(node) ? newSelectedNodes.delete(node) : newSelectedNodes.add(node);
+            } else {
+                // single-selection
+                const untoggle = newSelectedNodes.has(node) && newSelectedNodes.size === 1;
+                newSelectedNodes.clear();
+                !untoggle && newSelectedNodes.add(node);
+            }
+
+            console.log(newSelectedNodes)
+
+            return newSelectedNodes;
+        });
+    };
+
     const extraRenderers = [new CSS2DRenderer()];
 
     const linkForce = forceLink()
@@ -54,10 +85,10 @@ export const Map = () => {
         .distance(link => link.distance || 10)
         .strength(link => link.strength || 0.01);
 
-
     const xForce = forceX(node => node.x || 0).strength(0.5);
     const yForce = forceY(node => node.y || 0).strength(0.5);
     // const zForce = forceZ(node => node.z).strength(0.1);
+
 
     useEffect(() => {
         const bloomPass = new UnrealBloomPass();
@@ -81,8 +112,8 @@ export const Map = () => {
                 if (forceName === 'y') forceFn(yForce);
                 if (forceName === 'link') forceFn(linkForce);
             }}
-
             nodeAutoColorBy="group"
+            nodeVal={node => selectedNodes.has(node) ? 10 : 1}
             nodeThreeObject={node => {
                 const label = document.createElement('div');
                 label.textContent = `${node.id}`;
@@ -94,6 +125,7 @@ export const Map = () => {
             nodeThreeObjectExtend={true}
             onBackgroundClick={handleBackgroundClick}
             onNodeRightClick={handleNodeRightClick}
+            onNodeClick={handleNodeClick}
             onNodeDragEnd={node => {
                 node.fx = node.x;
                 node.fy = node.y;
